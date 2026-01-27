@@ -1,0 +1,54 @@
+{
+  "name": "@thesammykins/discord_opencode",
+  "version": "1.0.0",
+  "description": "Discord tools plugin for OpenCode - Send messages, embeds, buttons, and manage Discord interactions from AI agents",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist/"
+  ],
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "@opencode-ai/plugin": "^1.1.36",
+    "discord.js": "^14.16"
+  },
+  "peerDependencies": {
+    "bun": ">=1.0"
+  },
+  "engines": {
+    "bun": ">=1.0"
+  },
+  "keywords": [
+    "opencode",
+    "plugin",
+    "discord",
+    "ai",
+    "bot",
+    "tools"
+  ],
+  "author": "thesammykins",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/thesammykins/discord_opencode.git"
+  },
+  "bugs": {
+    "url": "https://github.com/thesammykins/discord_opencode/issues"
+  },
+  "homepage": "https://github.com/thesammykins/discord_opencode#readme",
+  "devDependencies": {
+    "@types/node": "^25.0.10"
+  }
+}
