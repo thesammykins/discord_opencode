@@ -13,6 +13,8 @@ import {
   ComponentType,
   EmbedBuilder,
   GatewayIntentBits,
+  TextChannel,
+  ThreadChannel,
 } from 'discord.js';
 import { loadConfig } from './config.js';
 import { validateFileAccess } from './file-sandbox.js';
@@ -27,6 +29,17 @@ import {
 
 let discordClient: Client | null = null;
 let sessionDb: any = null;
+
+interface ExtendedToolContext {
+  session?: {
+    userId?: string;
+    channelId?: string;
+    threadId?: string;
+  };
+  userId?: string;
+  channelId?: string;
+  threadId?: string;
+}
 
 const CHUNK_LIMIT = 1900;
 
@@ -76,13 +89,13 @@ async function getClient(): Promise<Client> {
   return discordClient;
 }
 
-async function getChannel(channelId: string) {
+async function getChannel(channelId: string): Promise<TextChannel> {
   const client = await getClient();
   const channel = await client.channels.fetch(channelId);
   if (!channel?.isTextBased()) {
     throw new Error(`Invalid channel: ${channelId}`);
   }
-  return channel;
+  return channel as TextChannel;
 }
 
 async function getSessionDb() {
@@ -351,7 +364,8 @@ export default async () => {
 
         let allowedUsers = args.allowed_user_ids?.filter(Boolean) ?? [];
         if (allowedUsers.length === 0) {
-          const sessionUserId = context?.session?.userId || context?.userId;
+          const extContext = context as ExtendedToolContext;
+          const sessionUserId = extContext?.session?.userId || extContext?.userId;
           if (sessionUserId) {
             allowedUsers = [sessionUserId];
           }
@@ -528,7 +542,8 @@ export default async () => {
         if (!thread.isThread()) {
           return 'Error: Not a thread';
         }
-        await thread.setName(args.name.slice(0, 100));
+        const threadChannel = thread as ThreadChannel;
+        await threadChannel.setName(args.name.slice(0, 100));
         return `Thread renamed to: ${args.name.slice(0, 100)}`;
       },
     }),
@@ -759,7 +774,8 @@ export default async () => {
         if (!thread.isThread()) {
           return JSON.stringify({ error: 'Not a thread' });
         }
-        const messages = await thread.messages.fetch({ limit: Math.min(args.limit ?? 20, 50) });
+        const threadChannel = thread as ThreadChannel;
+        const messages = await threadChannel.messages.fetch({ limit: Math.min(args.limit ?? 20, 50) });
         const history = [...messages.values()].reverse().map((m: any) => ({
           author: m.author.username,
           content: m.content,
@@ -785,10 +801,11 @@ export default async () => {
       async execute(args, context) {
         const channelId = await resolveChannelId(args.channel_id, context);
         const channel = await getChannel(channelId);
-        const content =
-          args.mention_user && channel.isThread()
-            ? `<@${channel.ownerId}> ${args.message}`
-            : args.message;
+        let content = args.message;
+        if (args.mention_user && channel.isThread()) {
+          const threadChannel = channel as ThreadChannel;
+          content = `<@${threadChannel.ownerId}> ${args.message}`;
+        }
         await channel.send(content);
         return 'Notification sent';
       },
@@ -810,7 +827,8 @@ export default async () => {
           return JSON.stringify({ error: 'Not a thread' });
         }
 
-        const messages = await thread.messages.fetch({ limit: 30 });
+        const threadChannel = thread as ThreadChannel;
+        const messages = await threadChannel.messages.fetch({ limit: 30 });
         const history = [...messages.values()].reverse().map((m: any) => ({
           author: m.author.bot ? 'assistant' : 'user',
           username: m.author.username,
@@ -819,9 +837,9 @@ export default async () => {
         }));
 
         return JSON.stringify({
-          thread_id: thread.id,
-          thread_name: thread.name,
-          created_at: thread.createdTimestamp,
+          thread_id: threadChannel.id,
+          thread_name: threadChannel.name,
+          created_at: threadChannel.createdTimestamp,
           message_count: messages.size,
           history,
         });
