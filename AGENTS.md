@@ -17,14 +17,12 @@ Run from repo root.
 - Build: `npm run build`
 - Typecheck: `npm run typecheck`
 - Dev watch: `npm run dev`
-- Test (current): `npm test`
-  - Note: currently prints "No tests yet" and exits 0.
+- Test: `npm test` (runs `bun test`)
 - Lint: none configured
 
 ### Single Test
 
-- Not available yet (no test runner or tests).
-- When tests are added, update `package.json` and this file.
+- Use `bun test --filter <name>` to run a single test.
 
 ## Repository Layout
 
@@ -97,6 +95,32 @@ Follow existing patterns in `src/index.ts` and related files.
 - Tools are registered via `tool({ ... })` from `@opencode-ai/plugin`.
 - Use `tool.schema` for arg validation and descriptions.
 - Return JSON strings for structured responses used by other tools.
+
+## Allowed Tools
+
+- `send_discord_message`
+- `send_embed`
+- `send_buttons`
+- `await_button_click`
+- `update_status`
+- `send_file`
+- `start_typing`
+- `reply_to_message`
+- `delete_message`
+- `edit_message`
+- `add_reaction`
+- `rename_thread`
+- `create_thread_for_conversation`
+- `get_thread_history`
+- `get_session_context`
+- `request_human_input`
+- `request_approval`
+- `notify_human`
+- `approve_remote_session`
+- `get_system_status`
+- `get_discord_health`
+- `list_projects`
+- `run_project_command`
 
 ## Formatting
 
