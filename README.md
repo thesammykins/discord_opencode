@@ -11,6 +11,7 @@ A Discord tools plugin for OpenCode that enables AI agents to send messages, emb
 - **Thread management** (create, rename, get history)
 - **Human-in-the-loop** (request input, approval)
 - **System status** monitoring
+- **Discord health** checks
 - **Project commands** (list projects, run commands)
 
 ## Installation
@@ -50,23 +51,39 @@ npm install @thesammykins/discord_opencode
 
 ## Configuration
 
-Set these environment variables before running OpenCode:
+On first run, the plugin creates a template config file at:
+
+`~/.config/opencode/discord_opencode.json`
+
+Edit that file and add your Discord token. If the file is missing, the plugin will create it and return an error telling you to restart OpenCode after setup.
+
+Example config:
+
+```json
+{
+  "discordToken": "YOUR_DISCORD_TOKEN",
+  "defaultChannelId": "123456789",
+  "databasePath": "/home/user/.discord_opencode/sessions.db",
+  "allowedFilePaths": ["/home/user/projects", "/tmp"],
+  "maxFileSize": 8388608,
+  "projectsDirectory": "/home/user/projects",
+  "allowedCommands": ["npm test", "npm run build", "npm run lint", "npm install", "git status"],
+  "enableSessionStore": true,
+  "enableProjectCommands": true,
+  "requireRemoteApproval": true,
+  "allowedTools": ["send_discord_message", "send_embed"]
+}
+```
+
+Notes:
+- `allowedCommands` is the allowlist for `run_project_command`.
+- `projectsDirectory` is the root used by `list_projects` and `run_project_command`.
+
+Environment variables still override file values when needed:
 
 ```bash
-# Required
 export DISCORD_TOKEN="your-discord-bot-token"
-
-# Optional - Session Store
-export DISCORD_OPENCODE_DB_PATH="/path/to/sessions.db"  # Default: ~/.discord_opencode/sessions.db
-export DISCORD_OPENCODE_ENABLE_SESSIONS="true"          # Default: true
-
-# Optional - File Sandbox
-export DISCORD_OPENCODE_ALLOWED_PATHS="/home/user/projects,/tmp"  # Default: ~/projects,/tmp
-export DISCORD_OPENCODE_MAX_FILE_SIZE="8388608"         # Default: 8MB
-
-# Optional - Project Commands
-export DISCORD_OPENCODE_PROJECTS_DIR="/home/user/projects"  # Default: ~/projects
-export DISCORD_OPENCODE_ENABLE_PROJECTS="true"          # Default: true
+export DISCORD_OPENCODE_CONFIG_PATH="/custom/path/discord_opencode.json"
 ```
 
 ## OpenCode Configuration
@@ -93,7 +110,7 @@ Add the plugin to your `opencode.json`:
 
 ### Embeds & UI
 
-- `send_embed` - Rich embeds with title, description, fields, colors
+- `send_embed` - Rich embeds with title, description, fields, colors, images
 - `send_buttons` - Interactive buttons for user choices
 - `await_button_click` - Wait for button interaction
 - `update_status` - Update message with status indicators
@@ -111,10 +128,12 @@ Add the plugin to your `opencode.json`:
 - `request_human_input` - Ask questions and wait for response
 - `request_approval` - Get yes/no approval before actions
 - `notify_human` - Send notifications
+- `approve_remote_session` - Allow a session to send Discord messages
 
 ### System & Projects
 
 - `get_system_status` - Get server metrics (uptime, disk, memory, CPU)
+- `get_discord_health` - Check Discord client connection status
 - `list_projects` - List projects in projects directory
 - `run_project_command` - Run allowlisted commands in project directories
 
@@ -142,7 +161,8 @@ CREATE TABLE sessions (
   project_name TEXT,
   context_encrypted BLOB,
   context_iv BLOB,
-  context_tag BLOB
+  context_tag BLOB,
+  remote_allowed INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE INDEX idx_opencode_session ON sessions(opencode_session_id);
