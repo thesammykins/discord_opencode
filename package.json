@@ -20,7 +20,7 @@
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "test": "echo 'No tests yet' && exit 0",
+    "test": "bun test",
     "dev": "tsc --watch"
   },
   "dependencies": {
