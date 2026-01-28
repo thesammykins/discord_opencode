@@ -45,7 +45,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/thesammykins/discord_opencode.git"
+    "url": "git+https://github.com/thesammykins/discord_opencode.git"
   },
   "bugs": {
     "url": "https://github.com/thesammykins/discord_opencode/issues"
