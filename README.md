@@ -16,8 +16,16 @@ A Discord tools plugin for OpenCode that enables AI agents to send messages, emb
 
 ## Installation
 
+Install as a project dependency:
+
 ```bash
 npm install @thesammykins/discord_opencode
+```
+
+Or install globally for the setup CLI:
+
+```bash
+npm install -g @thesammykins/discord_opencode
 ```
 
 ## Prerequisites
@@ -50,6 +58,22 @@ npm install @thesammykins/discord_opencode
 7. Copy the generated URL and open it in your browser to invite the bot to your server
 
 ## Configuration
+
+### Quick Setup
+
+Generate a config template with the setup CLI:
+
+```bash
+npx @thesammykins/discord_opencode setup
+```
+
+Options:
+- `--force` — overwrite an existing config file
+- `--config PATH` — write config to a custom path
+
+This creates a config at `~/.config/opencode/discord_opencode.json` with defaults you can edit.
+
+### Config File
 
 On first run, the plugin creates a template config file at:
 
@@ -144,29 +168,38 @@ The plugin can track Discord threads and OpenCode sessions in a SQLite database.
 - Automatic channel resolution from session context
 - Thread persistence across tool calls
 
-To set up the database schema:
+### Automatic Schema Bootstrap
+
+When `enableSessionStore` is true (the default), the plugin automatically creates the database file, `sessions` table, indexes, and enables WAL mode on first run. No manual SQL is required.
+
+The schema is idempotent — running against an existing database is a no-op. Existing databases are also migrated automatically (e.g., adding the `remote_allowed` column if missing).
+
+**Database location:** `~/.discord_opencode/sessions.db` (default), configurable via `databasePath` in config or `DISCORD_OPENCODE_DB_PATH` env var.
+
+**Troubleshooting:** If the plugin reports a database error, ensure the parent directory is writable. For existing installs, consider backing up your database before upgrading.
+
+### Schema Reference
+
+The `sessions` table is created with the following columns:
 
 ```sql
 CREATE TABLE sessions (
   id TEXT PRIMARY KEY,
   discord_thread_id TEXT,
-  discord_channel_id TEXT,
-  user_id TEXT,
-  state TEXT,
-  agent_type TEXT,
-  created_at INTEGER,
-  updated_at INTEGER,
+  discord_channel_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  state TEXT NOT NULL DEFAULT 'idle',
+  agent_type TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
   opencode_session_id TEXT,
   project_path TEXT,
   project_name TEXT,
-  context_encrypted BLOB,
-  context_iv BLOB,
-  context_tag BLOB,
+  context_encrypted TEXT,
+  context_iv TEXT,
+  context_tag TEXT,
   remote_allowed INTEGER NOT NULL DEFAULT 0
 );
-
-CREATE INDEX idx_opencode_session ON sessions(opencode_session_id);
-CREATE INDEX idx_discord_thread ON sessions(discord_thread_id);
 ```
 
 ## File Upload Security
@@ -216,6 +249,33 @@ AI: I'll create a thread for this discussion.
 AI: Before I delete this file, I need your approval.
 [Uses request_approval]
 ```
+
+## Memory Management (Optional)
+
+The plugin does not include a memory backend, but you can add persistent memory using [Chroma MCP](https://github.com/chroma-core/chroma-mcp) or similar tools. Memory is entirely optional and outside the plugin's core behavior.
+
+### Chroma MCP Setup
+
+Add Chroma as an MCP server in your OpenCode config:
+
+```json
+{
+  "mcpServers": {
+    "chroma": {
+      "command": "uvx",
+      "args": ["chroma-mcp", "--client-type", "persistent", "--data-dir", "/path/to/data"]
+    }
+  }
+}
+```
+
+Set `DEVBOI_DATA_DIR` to control where Chroma stores its data.
+
+### Retention Policy
+
+- **Store:** Decisions, architecture rationale, discovered constraints, user preferences
+- **Skip:** Ephemeral chat, raw logs, sensitive data (tokens, passwords)
+- Memory entries should explain *why*, not just *what*
 
 ## Development
 

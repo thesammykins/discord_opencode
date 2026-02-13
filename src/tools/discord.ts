@@ -3,8 +3,6 @@ import { Client, GatewayIntentBits, TextChannel, ThreadChannel } from 'discord.j
 import type { PluginConfig } from '../config.js';
 
 let discordClient: Client | null = null;
-let sessionSchemaChecked = false;
-let hasRemoteApprovalColumn = false;
 
 export interface ToolContext {
   agent?: string;
@@ -26,7 +24,6 @@ export interface ResolvedChannel {
 }
 
 const CHUNK_LIMIT = 1900;
-const REMOTE_APPROVAL_COLUMN = 'remote_allowed';
 
 export function splitMessageContent(text: string, maxLength = CHUNK_LIMIT): string[] {
   if (text.length <= maxLength) {
@@ -81,7 +78,7 @@ export async function getChannel(config: PluginConfig, channelId: string): Promi
   return channel as TextChannel;
 }
 
-async function openSessionDb(config: PluginConfig, writable = false) {
+async function openSessionDb(config: PluginConfig) {
   const { Database } = await import('bun:sqlite');
   if (!config.databasePath) {
     throw new Error('Session database path is not configured.');
@@ -94,33 +91,6 @@ async function openSessionDb(config: PluginConfig, writable = false) {
   }
 }
 
-async function checkSessionSchema(db: any) {
-  if (sessionSchemaChecked) return;
-  try {
-    const columns = db.prepare('PRAGMA table_info(sessions)').all();
-    hasRemoteApprovalColumn = columns.some((col: { name: string }) => col.name === REMOTE_APPROVAL_COLUMN);
-  } catch (error) {
-    console.warn('[discord-opencode] Failed to inspect session schema:', error);
-  } finally {
-    sessionSchemaChecked = true;
-  }
-}
-
-export async function ensureRemoteApprovalColumn(config: PluginConfig) {
-  const db = await openSessionDb(config, true);
-  try {
-    await checkSessionSchema(db);
-    if (hasRemoteApprovalColumn) return;
-
-    db.run(`ALTER TABLE sessions ADD COLUMN ${REMOTE_APPROVAL_COLUMN} INTEGER NOT NULL DEFAULT 0`);
-    hasRemoteApprovalColumn = true;
-  } catch (error) {
-    console.error('[discord-opencode] Failed to add remote approval column:', error);
-  } finally {
-    db.close();
-  }
-}
-
 async function getThreadIdFromSession(
   config: PluginConfig,
   opencodeSessionId: string | undefined
@@ -129,28 +99,16 @@ async function getThreadIdFromSession(
   if (!config.enableSessionStore) return null;
 
   try {
-    const db = await openSessionDb(config, false);
+    const db = await openSessionDb(config);
     try {
-      await checkSessionSchema(db);
-
-      if (hasRemoteApprovalColumn) {
-        const row = db
-          .prepare(
-            `SELECT discord_thread_id, ${REMOTE_APPROVAL_COLUMN} as remote_allowed FROM sessions WHERE opencode_session_id = ?`
-          )
-          .get(opencodeSessionId);
-        return {
-          threadId: row?.discord_thread_id || null,
-          remoteAllowed: row?.remote_allowed === 1,
-        };
-      }
-
       const row = db
-        .prepare('SELECT discord_thread_id FROM sessions WHERE opencode_session_id = ?')
-        .get(opencodeSessionId);
+        .prepare(
+          'SELECT discord_thread_id, remote_allowed FROM sessions WHERE opencode_session_id = ?'
+        )
+        .get(opencodeSessionId) as { discord_thread_id: string; remote_allowed: number } | undefined;
       return {
         threadId: row?.discord_thread_id || null,
-        remoteAllowed: false,
+        remoteAllowed: row?.remote_allowed === 1,
       };
     } finally {
       db.close();
@@ -217,11 +175,10 @@ export async function approveRemoteSession(
   if (!config.enableSessionStore) return false;
 
   try {
-    await ensureRemoteApprovalColumn(config);
-    const db = await openSessionDb(config, true);
+    const db = await openSessionDb(config);
     try {
       db.prepare(
-        `UPDATE sessions SET ${REMOTE_APPROVAL_COLUMN} = 1 WHERE opencode_session_id = ?`
+        'UPDATE sessions SET remote_allowed = 1 WHERE opencode_session_id = ?'
       ).run(opencodeSessionId);
     } finally {
       db.close();
@@ -241,66 +198,36 @@ export async function registerThreadSession(
   if (!config.enableSessionStore) return null;
 
   try {
-    const db = await openSessionDb(config, true);
+    const db = await openSessionDb(config);
     try {
-      db.run('PRAGMA journal_mode = WAL');
-
-      await ensureRemoteApprovalColumn(config);
-
       const sessionId = randomUUID();
       const now = Date.now();
 
-      if (hasRemoteApprovalColumn) {
-        db.prepare(`
-          INSERT INTO sessions (
-            id, discord_thread_id, discord_channel_id, user_id,
-            state, agent_type, created_at, updated_at,
-            opencode_session_id, project_path, project_name,
-            context_encrypted, context_iv, context_tag,
-            ${REMOTE_APPROVAL_COLUMN}
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(
-          sessionId,
-          thread.id,
-          thread.parentId,
-          thread.ownerId || 'unknown',
-          'idle',
-          agentType,
-          now,
-          now,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          0
-        );
-      } else {
-        db.prepare(`
-          INSERT INTO sessions (
-            id, discord_thread_id, discord_channel_id, user_id,
-            state, agent_type, created_at, updated_at,
-            opencode_session_id, project_path, project_name,
-            context_encrypted, context_iv, context_tag
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(
-          sessionId,
-          thread.id,
-          thread.parentId,
-          thread.ownerId || 'unknown',
-          'idle',
-          agentType,
-          now,
-          now,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null
-        );
-      }
+      db.prepare(`
+        INSERT INTO sessions (
+          id, discord_thread_id, discord_channel_id, user_id,
+          state, agent_type, created_at, updated_at,
+          opencode_session_id, project_path, project_name,
+          context_encrypted, context_iv, context_tag,
+          remote_allowed
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        sessionId,
+        thread.id,
+        thread.parentId,
+        thread.ownerId || 'unknown',
+        'idle',
+        agentType,
+        now,
+        now,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        0
+      );
 
       console.log(`[discord-opencode] Session ${sessionId} registered for thread ${thread.id}`);
       return sessionId;

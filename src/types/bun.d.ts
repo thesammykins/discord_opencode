@@ -8,6 +8,7 @@ declare module 'bun:sqlite' {
 
   export interface Statement {
     get(...params: any[]): any;
+    all(...params: any[]): any[];
     run(...params: any[]): void;
   }
 }

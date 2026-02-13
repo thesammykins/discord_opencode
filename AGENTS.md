@@ -28,9 +28,13 @@ Run from repo root.
 
 - `src/index.ts`: Tool definitions and main plugin entry
 - `src/config.ts`: Environment-based configuration
+- `src/schema.ts`: SQLite schema bootstrap and migration
 - `src/validation.ts`: Discord limit validation helpers
 - `src/file-sandbox.ts`: File access security
+- `src/cli/setup.ts`: npx setup CLI command
 - `src/types/bun.d.ts`: Types for `bun:sqlite`
+- `tests/unit/`: Unit tests (always run)
+- `tests/e2e/`: E2E tests (gated on Discord env vars)
 - `dist/`: Build output (generated)
 
 ## Code Style Guidelines
@@ -137,6 +141,35 @@ Follow existing patterns in `src/index.ts` and related files.
 
 - Workflows: `.github/workflows/ci.yml` and `publish.yml`.
 - Publish uses trusted publishing with `npm publish --provenance`.
+- Publish triggers on `v*` tags pushed to `main`.
+
+## Releases
+
+Every release **must** include a `CHANGELOG.md` entry before tagging.
+
+### Changelog Rules
+
+- Follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format.
+- Sections: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`.
+- Include `Migration Notes` if users need to take action (or state "No action required").
+- Breaking changes go under `Changed` or `Removed` with a `**BREAKING:**` prefix.
+- Add a comparison link at the bottom of the file for each version.
+
+### Release Process
+
+1. Update `CHANGELOG.md` with the new version entry.
+2. Bump `version` in `package.json`.
+3. Run `npm run build` to regenerate `dist/`.
+4. Commit: `release: prepare <version>`.
+5. Tag: `git tag v<version>`.
+6. Push: `git push && git push --tags`.
+7. GitHub Actions publishes to npm automatically on tag push.
+
+### Versioning (SemVer)
+
+- **Major** (`x.0.0`): Breaking API changes, removed tools, incompatible config changes.
+- **Minor** (`0.x.0`): New features, new tools, backward-compatible additions.
+- **Patch** (`0.0.x`): Bug fixes, doc corrections, dependency updates.
 
 ## Cursor/Copilot Rules
 
